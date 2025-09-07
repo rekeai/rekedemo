@@ -1,6 +1,8 @@
+# platform_api/sdk/reke_sdk.py
 # reke_sdk.py
 # Demo SDK: Tree-Ring-like watermark for images + hybrid video watermark approach.
 # NOTE: This is a demo implementation for investor-facing prototypes.
+
 import os, io, json, hashlib, hmac, subprocess, tempfile
 from datetime import datetime, timezone
 from PIL import Image, PngImagePlugin
@@ -36,7 +38,7 @@ def embed_image_treering(image_path: str, output_path: str, origin: str = "Fake 
      - Compute content hash of pixels
      - Build manifest (JSON)
      - Store manifest in PNG text chunk (reliable)
-     - Also embed a simple LSB pattern into the red channel for demo 'signal' (visible only to detector)
+     - Also embed a simple LSB pattern into the red channel for demo 'signal'
     """
     img = Image.open(image_path).convert('RGBA')
     pixels = img.tobytes()
@@ -68,13 +70,18 @@ def embed_image_treering(image_path: str, output_path: str, origin: str = "Fake 
     return output_path
 
 def verify_image_treering(image_bytes: bytes):
-    """Verify demo Tree-Ring watermark and manifest embedded in PNG tEXt + LSB pattern."""
+    """Verify demo Tree-Ring watermark and manifest embedded in PNG tEXt + LSB pattern.
+    Returns: (status_str, manifest_or_none, sig_ok_bool)
+        status_str: "AI Generated" or "Real" or "Unknown"
+    """
     try:
         img = Image.open(io.BytesIO(image_bytes))
     except Exception:
-        return False, None, False
+        return "Unknown", None, False
+
     manifest = None
     sig_ok = False
+    # check PNG tEXt manifest
     if img.format == 'PNG':
         mstr = img.info.get('reke_manifest')
         if mstr:
@@ -83,36 +90,41 @@ def verify_image_treering(image_bytes: bytes):
             except Exception:
                 manifest = None
         # verify LSB pattern matches HMAC (demo)
-        px = img.convert('RGBA').load()
-        w,h = img.size
-        # read LSBs from the same area
-        bits = []
-        for y in range(min(h,32)):
-            for x in range(min(w,32)):
-                r,g,b,a = px[x,y]
-                bits.append(r & 1)
-        # rebuild a simple check using manifest.sig
         if manifest and 'content_hash' in manifest and 'sig' in manifest:
             expected_sig = _hmac_sig(manifest['content_hash'])
-            # simple check: first bit of expected_sig hex equals first bit we read (demo)
-            try:
-                expected_first_bit = int(expected_sig[0], 16) & 1
-                if bits and bits[0] == expected_first_bit:
-                    sig_ok = (expected_sig == manifest.get('sig'))
-            except Exception:
-                sig_ok = False
+            # quick signature check
+            if expected_sig == manifest.get('sig'):
+                # extra LSB check (demo)
+                px = img.convert('RGBA').load()
+                w,h = img.size
+                bits = []
+                for y in range(min(h,32)):
+                    for x in range(min(w,32)):
+                        r,g,b,a = px[x,y]
+                        bits.append(r & 1)
+                try:
+                    expected_first_bit = int(expected_sig[0], 16) & 1
+                    if bits and bits[0] == expected_first_bit:
+                        sig_ok = True
+                except Exception:
+                    sig_ok = False
     else:
-        # For other formats, try to find manifest in comment (not robust in demo)
+        # For other formats, attempt to read comment (very limited)
         try:
             comment = img.info.get('comment')
             if comment and comment.startswith('REKE_MANIFEST:'):
                 manifest = json.loads(comment.split('REKE_MANIFEST:',1)[1])
-                sig_ok = (manifest.get('sig') == _hmac_sig(manifest.get('content_hash','')))
+                if manifest.get('sig') == _hmac_sig(manifest.get('content_hash','')):
+                    sig_ok = True
         except Exception:
             manifest = None
             sig_ok = False
-    verified = bool(manifest and sig_ok)
-    return verified, manifest, sig_ok
+
+    if manifest and sig_ok:
+        return "AI Generated", manifest, True
+    else:
+        # Explicitly return Real if no manifest found (not watermarked by SDK)
+        return "Real", None, False
 
 # ---------- Video: Hybrid watermark (demo) ----------
 def embed_video_hybrid(video_path: str, output_path: str, origin: str = "Fake AI Generator"):
@@ -154,17 +166,20 @@ def verify_video_hybrid(video_path: str):
     cmd = f'ffprobe -v quiet -print_format json -show_format "{video_path}"'
     p = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     if p.returncode != 0 or not p.stdout:
-        return False, None, False
+        return "Unknown", None, False
     try:
         info = json.loads(p.stdout)
     except Exception:
-        return False, None, False
+        return "Unknown", None, False
     comment = info.get('format', {}).get('tags', {}).get('comment','')
     if not comment:
-        return False, None, False
+        return "Real", None, False
     try:
         manifest = json.loads(comment)
     except Exception:
-        return False, None, False
+        return "Unknown", None, False
     sig_ok = (manifest.get('sig') == _hmac_sig(manifest.get('content_hash','')))
-    return bool(manifest and sig_ok), manifest, sig_ok
+    if manifest and sig_ok:
+        return "AI Generated", manifest, True
+    else:
+        return "Real", None, False
