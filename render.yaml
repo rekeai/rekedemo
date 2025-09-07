@@ -1,10 +1,10 @@
-services: 
+services:
   - type: web
     name: reke-platform-api
     env: docker
     plan: free
     rootDir: platform_api
-    dockerfilePath: platform_api/Dockerfile
+    dockerfilePath: Dockerfile
     envVars:
       - key: REKE_SECRET
         sync: false
@@ -16,17 +16,17 @@ services:
     env: docker
     plan: free
     rootDir: fake_generator
-    dockerfilePath: fake_generator/Dockerfile
+    dockerfilePath: Dockerfile
     envVars:
       - key: REKE_API_URL
-        sync: false   # we’ll manually set this after the API deploys
+        sync: false  # will manually set after API deployment
 
   - type: web
     name: reke-platform-ui
     env: docker
     plan: free
     rootDir: platform_ui
-    dockerfilePath: platform_ui/Dockerfile
+    dockerfilePath: Dockerfile
     envVars:
       - key: REKE_API_URL
-        sync: false   # we’ll manually set this after the API deploys
+        sync: false  # will manually set after API deployment
