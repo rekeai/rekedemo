@@ -1,3 +1,4 @@
+# platform_ui/app.py
 import os
 import requests
 import streamlit as st
@@ -43,15 +44,15 @@ with left:
                 r = requests.post(f"{API_URL}/verify/", files=files, timeout=60)
                 if r.ok:
                     data = r.json()
-                    badge = 'Real' if data.get('status') == 'Real' else 'Fake'
+                    status = data.get('status')
 
-                    # Display badge visually
-                    if badge == 'Real':
-                        st.success(f'✅ {badge} – Hidden watermark detected.')
+                    if status == 'AI Generated':
+                        st.success('✅ AI Generated – Hidden watermark detected.')
+                    elif status == 'Real':
+                        st.info('🟦 Real – No watermark found.')
                     else:
-                        st.error(f'❌ {badge} – No hidden watermark found.')
+                        st.warning('❓ Unknown – Could not verify.')
 
-                    # Show full API response
                     st.json(data)
                 else:
                     st.error('API error – could not verify file.')
