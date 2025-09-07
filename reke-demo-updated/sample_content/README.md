@@ -1,1 +1,0 @@
-Add your own PNG/JPG/MP4 here for demos.
