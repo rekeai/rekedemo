@@ -1,4 +1,4 @@
-services:
+services: 
   - type: web
     name: reke-platform-api
     env: docker
@@ -10,6 +10,7 @@ services:
         sync: false
       - key: REKE_PRICE
         value: "0.001"
+
   - type: web
     name: reke-fake-generator
     env: docker
@@ -18,10 +19,8 @@ services:
     dockerfilePath: fake_generator/Dockerfile
     envVars:
       - key: REKE_API_URL
-        fromService:
-          name: reke-platform-api
-          type: web
-          property: url
+        sync: false   # we’ll manually set this after the API deploys
+
   - type: web
     name: reke-platform-ui
     env: docker
@@ -30,7 +29,4 @@ services:
     dockerfilePath: platform_ui/Dockerfile
     envVars:
       - key: REKE_API_URL
-        fromService:
-          name: reke-platform-api
-          type: web
-          property: url
+        sync: false   # we’ll manually set this after the API deploys
