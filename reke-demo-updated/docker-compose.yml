@@ -1,0 +1,21 @@
+version: '3.8'
+services:
+  platform_api:
+    build: ./platform_api
+    ports:
+      - '8000:8000'
+    environment:
+      - REKE_SECRET=reke_demo_secret
+      - REKE_PRICE=0.001
+  fake_generator:
+    build: ./fake_generator
+    ports:
+      - '8501:8501'
+    environment:
+      - REKE_API_URL=http://platform_api:8000
+  platform_ui:
+    build: ./platform_ui
+    ports:
+      - '8502:8502'
+    environment:
+      - REKE_API_URL=http://platform_api:8000
