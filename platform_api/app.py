@@ -1,16 +1,32 @@
-import os, time
+import os
+import time
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from sdk.reke_sdk import verify_image_treering, verify_video_hybrid
+
+# Import both embed and verify functions from the SDK
+from sdk.reke_sdk import (
+    embed_image_treering,
+    embed_video_hybrid,
+    verify_image_treering,
+    verify_video_hybrid
+)
 
 # Price per verification (from environment variable)
 PRICE_PER_VERIFICATION = float(os.getenv("REKE_PRICE", "0.001"))
 
-app = FastAPI(title="Reke Platform API (Demo)", description="Paid verification API")
+app = FastAPI(
+    title="Reke Platform API (Demo)",
+    description="Paid verification API"
+)
 
 # Allow cross-origin requests for demo purposes
-app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_methods=['*'], allow_headers=['*'])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['*'],
+    allow_methods=['*'],
+    allow_headers=['*']
+)
 
 # Simple in-memory metrics
 METRICS = {'total': 0, 'verified': 0, 'unverified': 0, 'last_10': []}
@@ -30,7 +46,7 @@ def home():
 async def verify_file(file: UploadFile = File(...)):
     content = await file.read()
     mime = file.content_type or ''
-    
+
     # Decide verification method based on file type
     if mime.startswith('video'):
         tmp = 'temp_upload.mp4'
@@ -39,7 +55,7 @@ async def verify_file(file: UploadFile = File(...)):
         ok, manifest, sig_ok = verify_video_hybrid(tmp)
     else:
         ok, manifest, sig_ok = verify_image_treering(content)
-    
+
     # Update metrics
     METRICS['total'] += 1
     if ok:
@@ -48,7 +64,7 @@ async def verify_file(file: UploadFile = File(...)):
     else:
         METRICS['unverified'] += 1
         status = 'Fake'
-    
+
     # Store last 10 uploads
     rec = {
         'filename': file.filename,
@@ -59,7 +75,7 @@ async def verify_file(file: UploadFile = File(...)):
     }
     METRICS['last_10'].append(rec)
     METRICS['last_10'] = METRICS['last_10'][-10:]
-    
+
     # Return verification result
     return JSONResponse({
         'status': status,
