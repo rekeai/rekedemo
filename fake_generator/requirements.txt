@@ -1,6 +1,11 @@
-streamlit
-requests
-pillow
-numpy
-opencv-python
-ffmpeg-python
+# Web UI
+streamlit==1.37.0
+
+# HTTP requests to API
+requests==2.32.3
+
+# Image/video processing
+pillow==10.4.0
+opencv-python==4.8.1.78
+numpy==1.26.0
+ffmpeg-python==0.3.0
