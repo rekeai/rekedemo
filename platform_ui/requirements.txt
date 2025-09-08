@@ -1,3 +1,8 @@
-streamlit
-requests
-pillow
+# Web UI
+streamlit==1.37.0
+
+# HTTP client
+requests==2.32.3
+
+# Image display (optional)
+pillow==10.4.0
