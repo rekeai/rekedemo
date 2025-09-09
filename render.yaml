@@ -33,4 +33,4 @@ services:
     dockerfilePath: Dockerfile
     envVars:
       - key: REKE_API_URL
-        value: "https://your-api-url.onrender.com"
+        value: "https://reke-platform-api.onrender.com"
