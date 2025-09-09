@@ -5,7 +5,7 @@ services:
     ports:
       - '8000:8000'
     environment:
-      - REKE_SECRET=reke_demo_secret
+      - REKE_SECRET=reke_demo_secret   # replace with your own long secret in production
       - REKE_PRICE=0.001
 
   fake_generator:
@@ -14,8 +14,8 @@ services:
       - '8501:8501'
     environment:
       - REKE_API_URL=http://platform_api:8000
-      - REKE_SECRET=reke_demo_secret
       - REKE_ORIGIN=Fake AI Generator
+      - REKE_SECRET=reke_demo_secret   # same as API
 
   platform_ui:
     build: ./platform_ui
