@@ -1,8 +1,3 @@
-# UI
 streamlit==1.37.0
-
-# HTTP requests
 requests==2.32.3
-
-# Image support
 pillow==10.4.0
