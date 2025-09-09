@@ -1,10 +1,5 @@
-
----
-
-## 🐳 **docker-compose.yml** (Updated)
-
-```yaml
 version: '3.8'
+
 services:
   platform_api:
     build: ./platform_api
@@ -20,10 +15,7 @@ services:
       - '8501:8501'
     environment:
       - REKE_API_URL=http://platform_api:8000
-      - REKE_SECRET=reke_demo_secret
       - REKE_ORIGIN=Fake AI Generator
-    depends_on:
-      - platform_api
 
   platform_ui:
     build: ./platform_ui
@@ -31,5 +23,3 @@ services:
       - '8502:8502'
     environment:
       - REKE_API_URL=http://platform_api:8000
-    depends_on:
-      - platform_api
