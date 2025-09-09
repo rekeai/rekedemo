@@ -1,91 +1,77 @@
 # platform_api/app.py
-import os, io, uuid
-from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import JSONResponse, StreamingResponse
-from sdk.reke_sdk import verify_image_treering, verify_video_hybrid, embed_image_treering
-from PIL import Image, ImageDraw, ImageFont
+import os, time, io, shutil
+from fastapi import FastAPI, UploadFile, File
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="Reke Platform API", version="1.0")
+from sdk.reke_sdk import embed_image_treering, embed_video_hybrid, verify_image_treering, verify_video_hybrid
 
-# In-memory metrics
-METRICS = {
-    "total": 0,
-    "ai_generated": 0,
-    "real": 0,
-    "last_10": [],
-}
-REKE_PRICE = float(os.getenv("REKE_PRICE", "0.001"))
+PRICE_PER_VERIFICATION = float(os.getenv("REKE_PRICE", "0.001"))
+SAMPLES_DIR = "samples"
+os.makedirs(SAMPLES_DIR, exist_ok=True)
 
-# --- Verify endpoint ---
-@app.post("/verify/")
-async def verify(file: UploadFile = File(...)):
-    try:
-        if file.content_type.startswith("image/"):
-            img_bytes = await file.read()
-            status, manifest, sig_ok = verify_image_treering(img_bytes)
-        elif file.content_type.startswith("video/"):
-            tmp = f"/tmp/{uuid.uuid4()}_{file.filename}"
-            with open(tmp, "wb") as f:
-                f.write(await file.read())
-            status, manifest, sig_ok = verify_video_hybrid(tmp)
-        else:
-            return JSONResponse({"status": "Unknown", "error": "Unsupported type"})
+app = FastAPI(title="Reke Platform API (Demo)", description="Paid verification API")
+app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_methods=['*'], allow_headers=['*'])
 
-        # Update metrics
-        METRICS["total"] += 1
-        if status == "AI Generated":
-            METRICS["ai_generated"] += 1
-        elif status == "Real":
-            METRICS["real"] += 1
-        METRICS["last_10"].insert(0, {"status": status, "file": file.filename})
-        METRICS["last_10"] = METRICS["last_10"][:10]
+METRICS = {'total': 0, 'verified': 0, 'unverified': 0, 'last_10': []}
 
-        return {"status": status, "manifest": manifest, "signature_ok": sig_ok}
+@app.get('/', response_class=HTMLResponse)
+def home():
+    return """<html><body>
+    <h2>Reke Platform API (Demo)</h2>
+    <p>POST a file to /verify/ to test. Use the demo UI or this simple form:</p>
+    <form action="/verify/" enctype="multipart/form-data" method="post">
+    <input name="file" type="file"/><input type="submit" value="Verify"/>
+    </form>
+    <p><a href="/metrics">Metrics</a></p>
+    </body></html>"""
 
-    except Exception as e:
-        return JSONResponse({"status": "Unknown", "error": str(e)})
+# ---------------- Verification ----------------
+@app.post('/verify/')
+async def verify_file(file: UploadFile = File(...)):
+    content = await file.read()
+    mime = file.content_type or ''
+    if mime.startswith('video'):
+        tmp = 'temp_upload.mp4'
+        with open(tmp, 'wb') as f:
+            f.write(content)
+        status, manifest, sig_ok = verify_video_hybrid(tmp)
+        try: os.remove(tmp)
+        except Exception: pass
+    else:
+        status, manifest, sig_ok = verify_image_treering(content)
 
-# --- Metrics endpoint ---
-@app.get("/metrics")
+    # Update metrics
+    METRICS['total'] += 1
+    if status == "AI Generated":
+        METRICS['verified'] += 1
+    else:
+        METRICS['unverified'] += 1
+
+    rec = {'filename': file.filename, 'mime': mime, 'status': status, 'sig_valid': bool(sig_ok), 'timestamp': time.time()}
+    METRICS['last_10'].append(rec)
+    METRICS['last_10'] = METRICS['last_10'][-10:]
+
+    return JSONResponse({'status': status, 'signature_valid': bool(sig_ok), 'price': PRICE_PER_VERIFICATION, 'manifest': manifest})
+
+# ---------------- Metrics ----------------
+@app.get('/metrics')
 def metrics():
-    revenue = METRICS["total"] * REKE_PRICE
-    return {"metrics": METRICS, "estimated_revenue_this_session": revenue}
+    revenue = METRICS['total'] * PRICE_PER_VERIFICATION
+    return {'metrics': METRICS, 'price_per_verification': PRICE_PER_VERIFICATION, 'estimated_revenue_this_session': revenue}
 
-# --- Sample AI image (watermarked) ---
+# ---------------- Sample Endpoints ----------------
 @app.get("/sample/ai")
 def sample_ai():
-    img = Image.new("RGB", (600, 400), color=(40, 40, 90))
-    d = ImageDraw.Draw(img)
-    try:
-        fnt = ImageFont.truetype("DejaVuSans.ttf", 32)
-    except Exception:
-        fnt = None
-    d.text((40, 160), "AI Generated Sample", fill=(255, 255, 255), font=fnt)
+    path = os.path.join(SAMPLES_DIR, "sample_ai.reke.png")
+    if not os.path.exists(path):
+        # create watermarked AI sample
+        embed_image_treering("default_real.png", path, origin="Fake AI Generator")
+    return FileResponse(path, media_type="image/png", filename="sample_ai.reke.png")
 
-    tmp = "/tmp/sample_ai.png"
-    img.save(tmp)
-    out = "/tmp/sample_ai.reke.png"
-    embed_image_treering(tmp, out, origin="Sample AI Generator")
-
-    with open(out, "rb") as f:
-        return StreamingResponse(io.BytesIO(f.read()), media_type="image/png")
-
-# --- Sample Real image (no watermark) ---
 @app.get("/sample/real")
 def sample_real():
-    img = Image.new("RGB", (600, 400), color=(200, 220, 200))
-    d = ImageDraw.Draw(img)
-    try:
-        fnt = ImageFont.truetype("DejaVuSans.ttf", 32)
-    except Exception:
-        fnt = None
-    d.text((40, 160), "Real Sample Image", fill=(0, 0, 0), font=fnt)
-
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return StreamingResponse(buf, media_type="image/png")
-
-@app.get("/")
-def root():
-    return {"message": "Reke Platform API is running", "endpoints": ["/verify/", "/metrics", "/sample/ai", "/sample/real"]}
+    path = os.path.join(SAMPLES_DIR, "sample_real.png")
+    if not os.path.exists(path):
+        shutil.copy("default_real.png", path)
+    return FileResponse(path, media_type="image/png", filename="sample_real.png")
