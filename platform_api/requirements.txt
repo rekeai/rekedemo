@@ -1,14 +1,7 @@
-# Core web framework
 fastapi==0.115.0
 uvicorn==0.30.6
-
-# File uploads
 python-multipart==0.0.9
-
-# Image/video processing
 pillow==10.4.0
 opencv-python==4.8.1.78
 ffmpeg-python==0.3.0
-
-# HTTP requests (optional, if calling other services)
 requests==2.32.3
