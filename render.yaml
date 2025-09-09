@@ -7,7 +7,7 @@ services:
     dockerfilePath: Dockerfile
     envVars:
       - key: REKE_SECRET
-        sync: false
+        sync: false   # set in Render dashboard
       - key: REKE_PRICE
         value: "0.001"
 
@@ -19,7 +19,11 @@ services:
     dockerfilePath: Dockerfile
     envVars:
       - key: REKE_API_URL
-        sync: false  # will manually set after API deployment
+        sync: false   # set after API is deployed
+      - key: REKE_SECRET
+        sync: false   # must match API
+      - key: REKE_ORIGIN
+        value: "Fake AI Generator"
 
   - type: web
     name: reke-platform-ui
@@ -29,4 +33,4 @@ services:
     dockerfilePath: Dockerfile
     envVars:
       - key: REKE_API_URL
-        sync: false  # will manually set after API deployment
+        sync: false   # set after API is deployed
