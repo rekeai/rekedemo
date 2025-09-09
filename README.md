@@ -1,23 +1,42 @@
-# Reke Demo — Updated (Tree-Ring + Hybrid Video)
+# Reke Demo — Investor Prototype
 
-This repo contains an investor-facing demo of Reke. It includes:
-- SDK with a Tree-Ring-style watermark for images (demo implementation)
-- Hybrid watermark for videos: key-frame stamping + file-level manifest
-- Fake AI Generator (Streamlit) that embeds watermark when "generating" content
-- Platform API (FastAPI) that verifies files and returns Real / Fake
-- Platform UI (Streamlit) with toggle (Without API / With API) and Loom demo placeholder
-- Dockerfiles, docker-compose, and render.yaml for cloud deployment (Render.com)
+This repository contains an **investor-facing demo** of **Reke**, a watermark + verification system for AI-generated content.
 
-Quick start (Docker):
-1. Install Docker & Docker Compose
+## 🔹 Components
+
+- **SDK (`sdk/reke_sdk.py`)**  
+  - Demo Tree-Ring–style watermark for images.  
+  - Hybrid video watermark: key-frame stamping + file-level manifest.  
+
+- **Fake Generator (`fake_generator`)**  
+  - Streamlit app that **always produces AI-generated watermarked content**.  
+  - Download option and “Send to Platform” integration.
+
+- **Platform API (`platform_api`)**  
+  - FastAPI service to verify content.  
+  - Endpoints:
+    - `/verify/` → Verify an uploaded image or video.
+    - `/sample/ai` → Download a demo AI-generated image (watermarked).
+    - `/sample/real` → Download a demo “real” image (not watermarked).
+    - `/metrics` → Session metrics & revenue estimate.
+
+- **Platform UI (`platform_ui`)**  
+  - Streamlit app for platforms.  
+  - Upload toggle:
+    - **Without API** → Blind, returns “Unknown.”  
+    - **With API** → Detects “AI Generated” (if watermarked) or “Real” (if not).
+
+- **Deployment**  
+  - Dockerfiles in each service.  
+  - `docker-compose.yml` for local testing.  
+  - `render.yaml` for Render.com deployment.
+
+---
+
+## 🚀 Quick Start (Local with Docker Compose)
+
+1. Install Docker & Docker Compose.  
 2. From repo root:
-   docker compose up --build
-3. Open:
-   - API: http://localhost:8000
-   - Fake Generator: http://localhost:8501
-   - Platform UI: http://localhost:8502
 
-Notes:
-- This is a demo. A production Tree-Ring watermarking implementation is more advanced; here we simulate the idea using a manifest + a small LSB pattern.
-- Video hybrid uses ffmpeg to attach a manifest and stamp selected frames; ffmpeg is required in the Docker images.
-- Change REKE_SECRET in production; default demo secret is 'reke_demo_secret'.
+   ```bash
+   docker compose up --build
