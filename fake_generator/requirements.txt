@@ -1,11 +1,11 @@
-# UI
+# Core UI
 streamlit==1.37.0
 
 # HTTP requests
 requests==2.32.3
 
-# Image/video processing
+# Image/video
 pillow==10.4.0
+numpy==1.27.5
 opencv-python==4.8.1.78
-ffmpeg-python==0.2.0
-numpy==1.26.4
+ffmpeg-python==0.2.1
