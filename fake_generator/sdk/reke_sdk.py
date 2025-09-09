@@ -1,26 +1,19 @@
-# fake_generator/sdk/reke_sdk.py
-# Demo SDK: Tree-Ring-like watermark for images + hybrid video watermark approach.
-# NOTE: This is a demo implementation for investor-facing prototypes.
-
+# platform_api/sdk/reke_sdk.py
 import os, io, json, hashlib, hmac, subprocess, tempfile
 from datetime import datetime, timezone
 from PIL import Image, PngImagePlugin
 
-WATERMARK_MARK = "REKE-TR"  # marker for demo
+WATERMARK_MARK = "REKE-TR"
 REKE_SECRET = os.getenv("REKE_SECRET", "reke_demo_secret")
-
 
 def _now_iso():
     return datetime.now(timezone.utc).isoformat()
 
-
 def _content_hash_bytes(data: bytes):
     return hashlib.sha256(data).hexdigest()
 
-
 def _hmac_sig(content_hash: str):
     return hmac.new(REKE_SECRET.encode(), content_hash.encode(), hashlib.sha256).hexdigest()
-
 
 def _build_manifest(origin: str, content_hash: str):
     return {
@@ -34,8 +27,7 @@ def _build_manifest(origin: str, content_hash: str):
         "sig": _hmac_sig(content_hash),
     }
 
-
-# ---------- Image watermark ----------
+# ---------------- Image watermark ----------------
 def embed_image_treering(image_path: str, output_path: str, origin: str = "Fake AI Generator"):
     img = Image.open(image_path).convert("RGBA")
     pixels = img.tobytes()
@@ -63,7 +55,6 @@ def embed_image_treering(image_path: str, output_path: str, origin: str = "Fake 
         output_path = base + ".reke.png"
     img.save(output_path, "PNG", pnginfo=pnginfo, optimize=True)
     return output_path
-
 
 def verify_image_treering(image_bytes: bytes):
     try:
@@ -112,8 +103,7 @@ def verify_image_treering(image_bytes: bytes):
     else:
         return "Real", None, False
 
-
-# ---------- Video watermark ----------
+# ---------------- Video watermark ----------------
 def embed_video_hybrid(video_path: str, output_path: str, origin: str = "Fake AI Generator"):
     with open(video_path, "rb") as f:
         vbytes = f.read()
@@ -137,7 +127,6 @@ def embed_video_hybrid(video_path: str, output_path: str, origin: str = "Fake AI
         if code != 0:
             raise RuntimeError("ffmpeg failed to write metadata")
     return output_path
-
 
 def verify_video_hybrid(video_path: str):
     cmd = f'ffprobe -v quiet -print_format json -show_format "{video_path}"'
