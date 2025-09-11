@@ -1,34 +1,45 @@
-# platform_api/sdk/reke_sdk.py
+# platform_api/sdk/reke_sdk.py  (COPY THIS IDENTICAL into fake_generator/sdk/reke_sdk.py)
+"""
+Reke demo SDK (images + hybrid video).
+- Embeds a JSON manifest into PNG tEXt chunk.
+- Adds a tiny LSB pattern into the red channel for demo detection (Tree-Ring-like simulation).
+- Signs the content hash with HMAC(REKE_SECRET).
+- Video: stamps selected frames and writes manifest into file metadata (ffmpeg).
+Note: demo-only. Not production tamper-proof.
+"""
+
 import os, io, json, hashlib, hmac, subprocess, tempfile
 from datetime import datetime, timezone
 from PIL import Image, PngImagePlugin
 
-WATERMARK_MARK = "REKE-TR"
 REKE_SECRET = os.getenv("REKE_SECRET", "reke_demo_secret")
+WATERMARK_MARK = "REKE-TR-DEMO"
 
 def _now_iso():
     return datetime.now(timezone.utc).isoformat()
 
-def _content_hash_bytes(data: bytes):
+def _content_hash_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
-def _hmac_sig(content_hash: str):
+def _hmac_sig(content_hash: str) -> str:
     return hmac.new(REKE_SECRET.encode(), content_hash.encode(), hashlib.sha256).hexdigest()
 
-def _build_manifest(origin: str, content_hash: str):
+def _build_manifest(origin: str, content_hash: str) -> dict:
     return {
-        "spec": "c2pa-lite-demo",
-        "version": 1,
-        "claim_generator": "RekeSDK/treering-0.1",
+        "spec": "reke-demo-v1",
         "timestamp": _now_iso(),
-        "reke_origin": origin,
+        "origin": origin,
         "mark": WATERMARK_MARK,
         "content_hash": content_hash,
-        "sig": _hmac_sig(content_hash),
+        "sig": _hmac_sig(content_hash)
     }
 
-# ---------------- Image watermark ----------------
-def embed_image_treering(image_path: str, output_path: str, origin: str = "Fake AI Generator"):
+# ---------------- Image: embed & verify ----------------
+def embed_image_treering(image_path: str, output_path: str, origin: str = "Fake AI Generator") -> str:
+    """
+    Embed a simple demo "tree-ring" (LSB + PNG tEXt manifest) into an image.
+    Returns the path to the saved watermarked PNG.
+    """
     img = Image.open(image_path).convert("RGBA")
     pixels = img.tobytes()
     content_hash = _content_hash_bytes(pixels)
@@ -37,15 +48,16 @@ def embed_image_treering(image_path: str, output_path: str, origin: str = "Fake 
     pnginfo = PngImagePlugin.PngInfo()
     pnginfo.add_text("reke_manifest", json.dumps(manifest))
 
+    # pattern derived from HMAC - small demo LSB pattern
     sig = _hmac_sig(content_hash)
-    pattern = bytes.fromhex(sig)[:64]
+    pattern = bytes.fromhex(sig)[:64]  # demo bytes
     w, h = img.size
     px = img.load()
     idx = 0
     for y in range(min(h, 32)):
         for x in range(min(w, 32)):
             r, g, b, a = px[x, y]
-            bit = pattern[idx % len(pattern)] & 1
+            bit = (pattern[idx % len(pattern)] & 1)
             r = (r & ~1) | bit
             px[x, y] = (r, g, b, a)
             idx += 1
@@ -57,6 +69,10 @@ def embed_image_treering(image_path: str, output_path: str, origin: str = "Fake 
     return output_path
 
 def verify_image_treering(image_bytes: bytes):
+    """
+    Verify: returns tuple (status_str, manifest_or_none, sig_ok_bool)
+    status_str is exactly "AI Generated" or "Real" or "Unknown"
+    """
     try:
         img = Image.open(io.BytesIO(image_bytes))
     except Exception:
@@ -64,6 +80,7 @@ def verify_image_treering(image_bytes: bytes):
 
     manifest = None
     sig_ok = False
+
     if img.format == "PNG":
         mstr = img.info.get("reke_manifest")
         if mstr:
@@ -74,6 +91,7 @@ def verify_image_treering(image_bytes: bytes):
         if manifest and "content_hash" in manifest and "sig" in manifest:
             expected_sig = _hmac_sig(manifest["content_hash"])
             if expected_sig == manifest.get("sig"):
+                # LSB sanity check (first bit)
                 px = img.convert("RGBA").load()
                 w, h = img.size
                 bits = []
@@ -88,12 +106,12 @@ def verify_image_treering(image_bytes: bytes):
                 except Exception:
                     sig_ok = False
     else:
+        # fallback: try comment field
         try:
-            comment = img.info.get("comment")
-            if comment and comment.startswith("REKE_MANIFEST:"):
+            comment = img.info.get("comment", "")
+            if comment.startswith("REKE_MANIFEST:"):
                 manifest = json.loads(comment.split("REKE_MANIFEST:", 1)[1])
-                if manifest.get("sig") == _hmac_sig(manifest.get("content_hash", "")):
-                    sig_ok = True
+                sig_ok = (manifest.get("sig") == _hmac_sig(manifest.get("content_hash", "")))
         except Exception:
             manifest = None
             sig_ok = False
@@ -103,17 +121,24 @@ def verify_image_treering(image_bytes: bytes):
     else:
         return "Real", None, False
 
-# ---------------- Video watermark ----------------
-def embed_video_hybrid(video_path: str, output_path: str, origin: str = "Fake AI Generator"):
+# ---------------- Video: embed & verify (demo) ----------------
+def embed_video_hybrid(video_path: str, output_path: str, origin: str = "Fake AI Generator") -> str:
+    """
+    Demo hybrid: extract frames, stamp some frames, then copy metadata manifest into the video.
+    Requires ffmpeg installed in the image.
+    """
     with open(video_path, "rb") as f:
         vbytes = f.read()
     content_hash = _content_hash_bytes(vbytes)
     manifest = _build_manifest(origin, content_hash)
 
-    with tempfile.TemporaryDirectory() as tmp:
+    import os
+    from tempfile import TemporaryDirectory
+    with TemporaryDirectory() as tmp:
         frames_pattern = os.path.join(tmp, "frame_%06d.png")
         cmd_extract = f'ffmpeg -y -i "{video_path}" -vf "select=not(mod(n\\,10))" -vsync vfr "{frames_pattern}"'
         subprocess.call(cmd_extract, shell=True)
+        # stamp extracted frames
         for fn in sorted(os.listdir(tmp)):
             if fn.startswith("frame_") and fn.endswith(".png"):
                 fp = os.path.join(tmp, fn)
@@ -121,14 +146,18 @@ def embed_video_hybrid(video_path: str, output_path: str, origin: str = "Fake AI
                     embed_image_treering(fp, fp, origin=origin)
                 except Exception:
                     pass
+        # write manifest comment to output (best-effort demo)
         manifest_json = json.dumps(manifest).replace('"', '\\"')
         cmd_meta = f'ffmpeg -y -i "{video_path}" -metadata comment="{manifest_json}" -c copy "{output_path}"'
         code = subprocess.call(cmd_meta, shell=True)
         if code != 0:
-            raise RuntimeError("ffmpeg failed to write metadata")
+            raise RuntimeError("ffmpeg failed to write metadata; ensure ffmpeg installed")
     return output_path
 
 def verify_video_hybrid(video_path: str):
+    """
+    Read ffprobe metadata comment and validate HMAC. Returns same shape as image verify.
+    """
     cmd = f'ffprobe -v quiet -print_format json -show_format "{video_path}"'
     p = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     if p.returncode != 0 or not p.stdout:
@@ -144,7 +173,7 @@ def verify_video_hybrid(video_path: str):
         manifest = json.loads(comment)
     except Exception:
         return "Unknown", None, False
-    sig_ok = manifest.get("sig") == _hmac_sig(manifest.get("content_hash", ""))
+    sig_ok = (manifest.get("sig") == _hmac_sig(manifest.get("content_hash", "")))
     if manifest and sig_ok:
         return "AI Generated", manifest, True
     else:
