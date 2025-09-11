@@ -1,44 +1,36 @@
 # Reke Demo — Investor Prototype
 
-This repository contains an investor-facing demo of Reke, a watermark + verification system for AI-generated content.
+This repo contains a demo of Reke: SDK + API + Platform UI to show AI image/video watermarking & instant verification.
 
----
+## Structure
+- `platform_api/` — FastAPI verification API + SDK copy
+- `fake_generator/` — Streamlit demo generator that ALWAYS watermarks generated content (demo SDK)
+- `platform_ui/` — Streamlit demo platform (toggle: Without API / With API)
+- `docker-compose.yml` & `render.yaml` for deployment
 
-## 🔹 Components
+## Quick local start (Docker)
+1. Docker & Docker Compose installed.
+2. From repo root: `docker compose up --build`
+3. Open:
+   - API: http://localhost:8000
+   - Fake Generator: http://localhost:8501
+   - Platform UI: http://localhost:8502
 
-### SDK (`sdk/reke_sdk.py`)
-- Demo Tree-Ring–style watermark for images.
-- Hybrid video watermark: key-frame stamping + file-level manifest.
+## Render deployment (high level)
+1. Push code to GitHub.
+2. Connect repo to Render and import the `render.yaml`.
+3. Deploy `reke-platform-api` first.
+4. In Render: set `REKE_SECRET` (same value for api & generator). Set `REKE_PRICE`.
+5. Deploy generator & UI after setting `REKE_API_URL` to API public URL and `REKE_SECRET` for generator.
+6. Test end-to-end.
 
-### Fake Generator (`fake_generator`)
-- Streamlit app that always produces AI-generated watermarked content.
-- Download option and “Send to Platform” integration.
+## Demo flow for investors
+1. Fake Generator → Create demo AI image (watermarked) → Download.
+2. Platform UI → With API → Upload downloaded image → shows **AI Generated**.
+3. Platform UI → Without API → Upload same image → shows **Unknown**.
+4. Upload a non-watermarked image → With API → shows **Real**.
 
-### Platform API (`platform_api`)
-- FastAPI service to verify content.
-- Endpoints:
-  - `/verify/` → Verify an uploaded image or video.
-  - `/sample/ai` → Download a demo AI-generated image (watermarked).
-  - `/sample/real` → Download a demo “real” image (not watermarked).
-  - `/metrics` → Session metrics & revenue estimate.
+## Notes
+- Ensure `REKE_SECRET` is same across API & generator, otherwise verification fails.
+- The demo uses a simple manifest + LSB pattern; it is designed for investor demos, not as production cryptographic proof.
 
-### Platform UI (`platform_ui`)
-- Streamlit app for platforms.
-- Upload toggle:
-  - **Without API** → Blind, returns “Unknown.”
-  - **With API** → Detects “AI Generated” (if watermarked) or “Real” (if not).
-
----
-
-## 🚀 Deployment
-
-### Docker
-- Each service has its own Dockerfile.
-- `docker-compose.yml` for local testing.
-- `render.yaml` for Render.com deployment.
-
-### Quick Start (Local with Docker Compose)
-1. Install Docker & Docker Compose.
-2. From repo root, run:
-```bash
-docker compose up --build
