@@ -1,39 +1,70 @@
 # platform_ui/app.py
-import os, requests
-import streamlit as st
-from PIL import Image
+import os, requests, streamlit as st, uuid
 
-REKE_API_URL = os.getenv("REKE_API_URL", "")
+REKE_API_URL = os.getenv("REKE_API_URL", "").rstrip("/")
 
-st.title("Platform UI Demo (Fake vs Real Detection)")
+st.set_page_config(page_title="Fake Platform • Reke Demo", page_icon="🛡️", layout="wide")
+st.title("🛡️ Fake Platform (Toggle: Without API / With API)")
 
-use_api = st.checkbox("Use Reke API", value=True)
-uploaded_files = st.file_uploader("Upload content (PNG/JPG/MP4)", accept_multiple_files=True)
+left, right = st.columns([2, 1])
+with left:
+    st.subheader("Upload content (simulate a user post)")
+    uploaded = st.file_uploader("Choose an image or short video", type=["png", "jpg", "jpeg", "mp4"])
+    mode = st.radio("Platform mode:", ("Without Reke API", "With Reke API"))
 
-# Quick Samples
-st.subheader("Quick Samples")
-col1, col2 = st.columns(2)
-with col1:
-    if st.button("Sample AI"):
-        r = requests.get(f"{REKE_API_URL}/sample/ai")
-        with open("sample_ai.reke.png", "wb") as f: f.write(r.content)
-        st.image("sample_ai.reke.png", caption="Sample AI Image")
-with col2:
-    if st.button("Sample Real"):
-        r = requests.get(f"{REKE_API_URL}/sample/real")
-        with open("sample_real.png", "wb") as f: f.write(r.content)
-        st.image("sample_real.png", caption="Sample Real Image")
-
-# Uploaded files verification
-if uploaded_files:
-    for file in uploaded_files:
-        img_bytes = file.read()
-        if use_api:
-            resp = requests.post(f"{REKE_API_URL}/verify/", files={"file": img_bytes})
-            data = resp.json()
-            if data.get("status") == "AI Generated":
-                st.success(f"{file.name} → 🟥 AI Generated")
-            else:
-                st.info(f"{file.name} → 🟦 Real")
+    if uploaded and st.button("Post"):
+        if mode == "Without Reke API":
+            st.warning("❓ Unknown – platform has no verification integrated.")
         else:
-            st.info(f"{file.name} → 🟦 Real (API off)")
+            tmp = f"/tmp/{uuid.uuid4().hex}_{uploaded.name}"
+            with open(tmp, "wb") as f:
+                f.write(uploaded.getvalue())
+            try:
+                with open(tmp, "rb") as f:
+                    r = requests.post(f"{REKE_API_URL}/verify/", files={"file": (uploaded.name, f, uploaded.type)}, timeout=20)
+                if r.ok:
+                    data = r.json()
+                    status = data.get("status", "Unknown")
+                    if status == "AI Generated":
+                        st.success(f"✅ {status} – Hidden watermark detected.")
+                    elif status == "Real":
+                        st.info(f"🟦 {status} – No watermark found.")
+                    else:
+                        st.warning(f"❓ {status}")
+                    st.json(data)
+                else:
+                    st.error("API error: " + str(r.status_code))
+            except Exception as e:
+                st.error(f"API call failed: {e}")
+            finally:
+                try:
+                    os.remove(tmp)
+                except Exception:
+                    pass
+
+with right:
+    st.subheader("Quick samples")
+    if st.button("Download Sample AI (watermarked)"):
+        try:
+            r = requests.get(f"{REKE_API_URL}/sample/ai", timeout=10)
+            open("sample_ai.reke.png", "wb").write(r.content)
+            st.image("sample_ai.reke.png", caption="Sample AI (watermarked)")
+        except Exception as e:
+            st.error(f"Sample AI fetch failed: {e}")
+
+    if st.button("Download Sample Real"):
+        try:
+            r = requests.get(f"{REKE_API_URL}/sample/real", timeout=10)
+            open("sample_real.png", "wb").write(r.content)
+            st.image("sample_real.png", caption="Sample Real (plain)")
+        except Exception as e:
+            st.error(f"Sample real fetch failed: {e}")
+
+    st.subheader("Session metrics")
+    try:
+        m = requests.get(f"{REKE_API_URL}/metrics", timeout=5).json()
+        st.metric("Total verifications", m["metrics"]["total"])
+        st.metric("AI Generated", m["metrics"]["verified"])
+        st.metric("Real", m["metrics"]["unverified"])
+    except Exception:
+        st.warning("API metrics not available. Start the API service first.")
