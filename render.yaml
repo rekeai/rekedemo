@@ -12,20 +12,6 @@ services:
         value: "0.001"
 
   - type: web
-    name: reke-fake-generator
-    env: docker
-    plan: free
-    rootDir: fake_generator
-    dockerfilePath: Dockerfile
-    envVars:
-      - key: REKE_API_URL
-        sync: false
-      - key: REKE_SECRET
-        sync: false
-      - key: REKE_ORIGIN
-        value: "Fake AI Generator"
-
-  - type: web
     name: reke-platform-ui
     env: docker
     plan: free
@@ -34,3 +20,11 @@ services:
     envVars:
       - key: REKE_API_URL
         sync: false
+
+  - type: worker
+    name: reke-fake-generator
+    env: docker
+    plan: free
+    rootDir: fake_generator
+    dockerfilePath: Dockerfile
+    envVars: []
